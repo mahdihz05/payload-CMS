@@ -1,0 +1,13 @@
+.git
+.agents
+.opencode
+artifacts
+**/.env
+**/.env.*
+**/node_modules
+!frontend/.next/standalone/**/node_modules
+!frontend/.next/standalone/**/node_modules/**
+frontend/.next/cache
+frontend/coverage
+frontend/private-media
+frontend/media

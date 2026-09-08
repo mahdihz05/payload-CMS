@@ -1,0 +1,102 @@
+name: Starter CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  application:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: payload_starter_ci
+          POSTGRES_USER: payload
+          POSTGRES_PASSWORD: payload_ci_only
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U payload -d payload_starter_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    defaults:
+      run:
+        working-directory: frontend
+    env:
+      DATABASE_URI: postgres://payload:payload_ci_only@127.0.0.1:5433/payload_starter_ci
+      PAYLOAD_SECRET: ci-only-payload-secret-at-least-thirty-two-characters
+      NEXT_PUBLIC_SITE_URL: http://127.0.0.1:3100
+      PAYLOAD_ADMIN_EMAIL: ci-admin@example.test
+      PAYLOAD_ADMIN_PASSWORD: ci-only-password-12345
+      IP_HASH_SECRET: ci-only-ip-hash-secret-at-least-thirty-two-characters
+      REVALIDATION_SECRET: ci-only-revalidation-secret-at-least-thirty-two-characters
+      NODE_ENV: production
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run migrate
+      - run: npm run bootstrap
+      - run: npm run bootstrap
+      - run: npm run migrate:status
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run test:seo:integration
+      - run: npm run test:core:integration
+      - run: npm run build
+      - run: npm run test:integration
+      - run: npm run test:seo:e2e
+
+  docker:
+    needs: application
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DATABASE_URI: postgres://payload:payload_docker_ci@postgres:5432/payload_starter_ci
+      PAYLOAD_SECRET: ci-only-payload-secret-at-least-thirty-two-characters
+      IP_HASH_SECRET: ci-only-ip-hash-secret-at-least-thirty-two-characters
+      NEXT_PUBLIC_SITE_URL: http://127.0.0.1:3001
+      DEPLOYMENT_ENV: production
+      POSTGRES_DB: payload_starter_ci
+      POSTGRES_USER: payload
+      POSTGRES_PASSWORD: payload_docker_ci
+      PAYLOAD_ADMIN_EMAIL: ci-admin@example.test
+      PAYLOAD_ADMIN_PASSWORD: ci-only-password-12345
+      WEB_PORT: 3001
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose -f deploy/compose.yaml build web scheduler
+      - run: docker compose -f deploy/compose.yaml up -d postgres
+      - run: docker compose -f deploy/compose.yaml run --rm scheduler npm run migrate
+      - run: docker compose -f deploy/compose.yaml run --rm scheduler npm run bootstrap
+      - run: docker compose -f deploy/compose.yaml up -d web scheduler
+      - name: Smoke Docker stack
+        run: |
+          for attempt in $(seq 1 90); do
+            curl --fail --silent http://127.0.0.1:3001/readyz && break
+            sleep 2
+          done
+          curl --fail http://127.0.0.1:3001/en
+          curl --fail http://127.0.0.1:3001/admin
+          curl --fail http://127.0.0.1:3001/robots.txt
+          curl --fail http://127.0.0.1:3001/sitemap.xml
+          docker compose -f deploy/compose.yaml ps
+      - name: Logs
+        if: failure()
+        run: docker compose -f deploy/compose.yaml logs
+      - name: Stop Docker stack
+        if: always()
+        run: docker compose -f deploy/compose.yaml down -v

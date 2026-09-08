@@ -1,0 +1,90 @@
+name: payload-cms-starter
+
+x-runtime-environment: &runtime-environment
+  DATABASE_URI: ${DATABASE_URI:?DATABASE_URI is required}
+  PAYLOAD_SECRET: ${PAYLOAD_SECRET:?PAYLOAD_SECRET is required}
+  IP_HASH_SECRET: ${IP_HASH_SECRET:?IP_HASH_SECRET is required}
+  NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:?NEXT_PUBLIC_SITE_URL is required}
+  DEPLOYMENT_ENV: ${DEPLOYMENT_ENV:-production}
+  REVALIDATION_SECRET: ${REVALIDATION_SECRET:-}
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    stop_grace_period: 60s
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    security_opt: ["no-new-privileges:true"]
+    logging: &logging
+      driver: json-file
+      options: { max-size: "10m", max-file: "5" }
+
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      target: web
+      args:
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:?NEXT_PUBLIC_SITE_URL is required}
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 30s
+    environment:
+      <<: *runtime-environment
+      PORT: 3000
+    ports:
+      - "127.0.0.1:${WEB_PORT:-3001}:3000"
+    volumes:
+      - media:/app/media
+      - private_media:/app/private-media
+    depends_on:
+      postgres: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/readyz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    security_opt: ["no-new-privileges:true"]
+    logging: *logging
+
+  scheduler:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      target: scheduler
+    restart: unless-stopped
+    init: true
+    environment:
+      <<: *runtime-environment
+      SCHEDULER_INTERVAL_MS: ${SCHEDULER_INTERVAL_MS:-60000}
+    depends_on:
+      postgres: { condition: service_healthy }
+    security_opt: ["no-new-privileges:true"]
+    logging: *logging
+
+  backup:
+    image: postgres:17-alpine
+    profiles: ["operations"]
+    entrypoint: ["sh", "-c"]
+    command: ["echo 'Use a documented backup or restore command.'"]
+    volumes:
+      - ../backups:/backup
+      - media:/data/media
+      - private_media:/data/private-media
+    security_opt: ["no-new-privileges:true"]
+
+volumes:
+  postgres_data:
+  media:
+  private_media:

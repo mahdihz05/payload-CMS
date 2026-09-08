@@ -1,0 +1,19 @@
+:root {
+  --theme-elevation-0: #ffffff;
+  --theme-elevation-50: #f6f8fc;
+  --theme-elevation-100: #edf1f7;
+  --theme-elevation-150: #dfe6f0;
+  --theme-elevation-800: #24304a;
+  --theme-elevation-1000: #0b1023;
+  --theme-success-500: #148767;
+}
+
+.template-minimal .login__form {
+  border-radius: 18px;
+  box-shadow: 0 28px 80px -52px rgba(15, 35, 80, .55);
+}
+
+.btn--style-primary {
+  --style-bg-color: #2f6bff;
+  --style-bg-hover-color: #2257da;
+}

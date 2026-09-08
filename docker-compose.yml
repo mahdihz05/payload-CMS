@@ -1,0 +1,19 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: payload_starter
+      POSTGRES_USER: payload
+      POSTGRES_PASSWORD: payload_local_only
+    ports:
+      - "5433:5432"
+    volumes:
+      - payload_starter_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U payload -d payload_starter"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  payload_starter_postgres:

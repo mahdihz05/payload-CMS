@@ -10,7 +10,7 @@ ENV DATABASE_URI=postgresql://build:build@127.0.0.1:5432/build
 ENV PAYLOAD_SECRET=build-only-payload-secret-at-least-32-characters
 ENV IP_HASH_SECRET=build-only-ip-hash-secret-at-least-32-characters
 COPY frontend/ ./
-RUN npm run build
+RUN mkdir -p public && npm run build
 
 FROM node:22-alpine AS web
 WORKDIR /app

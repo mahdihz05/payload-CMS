@@ -41,7 +41,7 @@
     "@payloadcms/translations": "3.88.0",
     "file-type": "^22.0.2",
     "graphql": "^16.14.2",
-    "jszip": "^3.10.1",
+    "jszip": "^3.10.2",
     "next": "16.3.2",
     "payload": "^3.88.0",
     "pg": "^8.23.0",

@@ -8,6 +8,19 @@ This is an independent starter built with Payload CMS and Next.js. It is not an 
 
 The repository provides reusable infrastructure commonly needed by content-driven websites: Payload Admin, localized Page/Block composition, media and forms, data-level permissions, audit logs, drafts and versions, secure preview, scheduled publishing, database migrations, technical SEO, Docker deployment, recovery guidance, and CI. Its public UI is intentionally minimal so each derived site can implement its own design.
 
+## Engineering Review Guide
+
+Start with [Architecture](docs/ARCHITECTURE.md), then follow these implementation boundaries:
+
+| Concern | Mechanism and source |
+|---|---|
+| Content versus presentation | Localized Pages carry typed blocks; [block rendering](frontend/src/components/block-renderer.tsx) owns visible output while document SEO stays separate. |
+| One SEO contract | The [typed resolver](frontend/src/lib/seo-resolver.ts) derives canonical URLs, robots, translation alternates and sitemap eligibility from content/workflow state rather than individual UI blocks. |
+| Authorization below the UI | [Access functions](frontend/src/payload/access.ts) distinguish content, SEO, form and administrative permissions; [core integration tests](frontend/src/payload/core-subsystems.integration.test.ts) exercise API/data boundaries. |
+| Durable state and background work | [Source-controlled migrations](frontend/src/migrations/index.ts) and bootstrap are separate steps; a [scheduler process](frontend/scripts/run-scheduler.mjs) discovers schedules and runs jobs outside the web request lifecycle. |
+
+**Scope:** this is a reusable starter with a minimal public UI, not evidence of a deployed customer site or a production-readiness certification. The CI evidence below covers a specific commit and disposable test infrastructure; real secrets, access review, HTTPS, monitoring and tested PostgreSQL/media recovery remain deployment responsibilities.
+
 ## Stack
 
 | Component | Version / requirement |
@@ -160,7 +173,7 @@ Payload Admin is at `/admin`.
 | `seo` | SEO fields and redirect drafts; cannot change body, path, publication state, forms, or media |
 | `viewer` | Read-only authenticated content access; no mutations |
 
-Only administrators can update users/globals, read audit logs, activate/delete protected redirects, or perform other administrator-only actions. API/data-level tests verify these boundaries.
+Only administrators can update users/globals, read audit logs, activate/delete protected redirects, or perform other administrator-only actions. API/data-level integration suites include checks for these boundaries; see the commit-scoped CI evidence below.
 
 ## Creating a New Website
 
@@ -238,7 +251,16 @@ See [Upgrading](docs/UPGRADING.md) and [Security](docs/SECURITY.md). Releases us
 
 ## CI and GitHub
 
-`Starter CI` validates clean install, PostgreSQL migrations, bootstrap idempotency, lint, typecheck, unit and integration tests, forms, production build, localization, SEO, redirects, preview, schema, sitemap status, scheduled publishing, and Docker build/smoke. `CodeQL` analyzes JavaScript/TypeScript on main, pull requests, and a weekly schedule.
+### Recorded evidence, not an evergreen passing-test claim
+
+On October 2, 2026, GitHub Actions was rechecked for source commit [`7783a5b939b9f6e3940ee8858e25d2f4fd654911`](https://github.com/mahdihz05/payload-CMS/commit/7783a5b939b9f6e3940ee8858e25d2f4fd654911). [Starter CI run `34339523743`](https://github.com/mahdihz05/payload-CMS/actions/runs/34339523743), started September 9, 2026, recorded successful `application` and `docker` jobs at that exact commit:
+
+- **Application:** clean npm install; PostgreSQL migration; bootstrap invoked twice; migration status; lint; typecheck; unit tests; SEO and core integration suites; production build; forms HTTP integration; SEO HTTP E2E suite.
+- **Docker:** builds the web and scheduler images; starts disposable PostgreSQL; runs migrations/bootstrap; starts web/scheduler; probes readiness and requests `/en`, `/admin`, `/robots.txt` and `/sitemap.xml`; tears down the stack.
+
+These are observed hosted results, not locally rerun checks. They do not prove production availability, recovery success, every security property, or the result at a later commit (including README-only changes). Follow the linked run and the current commit checks when assessing a new revision.
+
+The [Starter CI workflow](.github/workflows/starter-ci.yml) runs on pushes and pull requests targeting `main`. [CodeQL](.github/workflows/codeql.yml) separately analyzes JavaScript/TypeScript on those events and a weekly schedule; static analysis is not an application test or deployment check.
 
 ## Production Checklist
 
